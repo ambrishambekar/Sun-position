@@ -1,0 +1,120 @@
+/* This program calculates solar positions as a function of location,date and time. The equations are
+from Jean Meeus, Astronomical Algorithms, William-Bell, Inc., Richmond,VA (C) 2015, David Brooks, 
+Institute for Earth Sciences Research and Education. 
+
+Please note this program has been modified to be run on a Redlion DSPZR datalogger.
+ */
+
+
+float a,b;
+
+Sun.Pi:=3.1415926535897932;
+Sun.TwoPi:=6.2831853071795;
+Sun.DegToRad:=0.01745329;
+Sun.Lat:=38.345278*Sun.DegToRad;//Sun.HMI_Latitude*Sun.DegToRad;//
+Sun.Lon:=-121.121667*Sun.DegToRad;//Sun.HMI_Longitude*Sun.DegToRad;//
+
+Sun.year:=GetYear(GetNow());
+Sun.month:=GetMonth(GetNow());
+Sun.day:=GetDate(GetNow());
+Sun.minutes:=GetMin(GetNow());
+
+Sun.PercentageSeconds:=GetSec(GetNow())*2.7777777778E-4;
+Sun.PercentageMinutes:=Sun.minutes*0.01666666667;
+Sun.hours:=GetHour(GetNow())+ 7;//Sun.LSTM;
+
+if(Sun.month<=2)
+{
+ Sun.year--;
+ Sun.month+=12;
+}
+
+a:= Sun.year*0.01;
+b:= 2-a+(a*0.25);
+Sun.Tag1:=b;
+
+
+//Julian date calculations
+
+Sun.JDWhole:=int(((365.25*(Sun.year+4716))+int((30.6001*(Sun.month+1))+Sun.day+Sun.Tag1-1524))-2451545);
+Sun.JDF:= (((Sun.hours)+(Sun.PercentageMinutes)+(Sun.PercentageSeconds))*0.04167)-0.5;
+Sun.JD:=(Sun.JDWhole+Sun.JDF)*2.7378507871E-5;
+
+//Solar Longitude in radians
+
+Sun.q:=int((280.46645+(36000.76983*Sun.JD))*0.0027778);
+Sun.v1:=(Sun.q*360);
+Sun.v=(280.46645+(36000.76983*Sun.JD));
+Sun.remainder=Sun.v-Sun.v1;
+Sun.L0:=Sun.DegToRad*Sun.remainder;
+
+//Solar mean anamoly
+
+Sun.q1:=int((357.5291+(35999.0503*Sun.JD))*0.0027778);
+Sun.v21:=(Sun.q1*360);
+Sun.v2:=(357.5291+(35999.0503*Sun.JD));
+Sun.remainder2:=Sun.v2-Sun.v21;
+Sun.M:= Sun.DegToRad*Sun.remainder2;
+
+//Eccentricity of Earth's orbit e
+
+Sun.eccent:= 0.016708617-(0.000042037*Sun.JD);
+
+//Sun's equation of center
+
+Sun.C:= Sun.DegToRad * ((1.9146-(0.004847*Sun.JD))*sin(Sun.M)+(0.019993-(0.000101*Sun.JD))*sin(2*Sun.M)+0.00029*sin(3*Sun.M));
+
+//True Solar anamoly
+
+Sun.f:=Sun.M+Sun.C;
+
+//Obliquity of the equator
+
+Sun.Obl:= Sun.DegToRad *(23+(26*0.016667)+(21.448*0.00027778)-(46.815*0.00027778)*Sun.JD);
+
+//Greenwich hour angle
+
+Sun.Tag2:=int(360*Sun.JDWhole);
+Sun.Tag3:=int(Sun.Tag2)%360;
+Sun.GrHrAngle:=280.46061837+(360*Sun.JDWhole)+(0.98564736629*Sun.JDWhole)+(360.98564736629*Sun.JDF);
+
+Sun.q2:=int(Sun.GrHrAngle*0.0027778);
+Sun.v31:=(Sun.q2*360);
+Sun.v3:=Sun.GrHrAngle;
+Sun.GrHrAngle1:=Sun.v3-Sun.v31;
+
+// L_true
+ 
+Sun.CplusL0:=Sun.C+Sun.L0;
+Sun.q3:=int(Sun.CplusL0*0.159154943);
+Sun.v41:=(Sun.q3*Sun.TwoPi);
+Sun.L_true:=Sun.CplusL0-Sun.v41;
+
+//R
+
+Sun.R1:=1.000001018*(1-(Sun.eccent*Sun.eccent));
+Sun.R2:=1+(Sun.eccent*cos(Sun.f));
+Sun.R:= Sun.R1/(Sun.R2);
+
+//RA
+
+Sun.RA:=atan2(sin(Sun.L_true)*cos(Sun.Obl),cos(Sun.L_true));
+
+//Declination
+
+Sun.Decl:=(asin(sin(Sun.Obl)*sin(Sun.L_true)))*Sun.Declination;
+
+//HrAngle
+
+Sun.HrAngle:=(Sun.DegToRad*Sun.GrHrAngle1)+Sun.Lon-Sun.RA;
+
+//Altitude
+
+Sun.altitude:= asin((sin(Sun.Lat)*sin(Sun.Decl))+(cos(Sun.Lat)*cos(Sun.Decl)*cos(Sun.HrAngle)));
+Sun.altitudedegree:=Sun.altitude/Sun.DegToRad;
+
+//Azimuth
+
+Sun.azimuth:=Sun.Pi+atan2(sin(Sun.HrAngle),cos(Sun.HrAngle)*sin(Sun.Lat)-tan(Sun.Decl)*cos(Sun.Lat));
+Sun.azimuthdegree:= Sun.azimuth/Sun.DegToRad;
+
